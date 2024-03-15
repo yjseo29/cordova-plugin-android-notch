@@ -1,32 +1,24 @@
-
-
-
 package com.tobspr.androidnotch;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.os.Build;
-import android.view.Display;
 import android.view.DisplayCutout;
 import android.view.View;
-import android.view.Window;
 import android.view.WindowInsets;
-import android.view.WindowManager;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaArgs;
-import org.apache.cordova.CordovaInterface;
 import org.apache.cordova.CordovaPlugin;
-import org.apache.cordova.CordovaWebView;
-import org.apache.cordova.LOG;
 import org.apache.cordova.PluginResult;
 import org.json.JSONException;
-import java.util.Arrays;
+import org.json.JSONObject;
 
 
 public class AndroidNotch extends CordovaPlugin {
     private static final String TAG = "AndroidNotch";
 
+    private static DisplayCutout cutout = null;
     
     /**
      * Executes the request and returns PluginResult.
@@ -39,22 +31,17 @@ public class AndroidNotch extends CordovaPlugin {
     @Override
     public boolean execute(final String action, final CordovaArgs args, final CallbackContext callbackContext) throws JSONException {
         final Activity activity = this.cordova.getActivity();
-        final Window window = activity.getWindow();
 
         if ("setLayout".equals(action)) {
             this.webView.getView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
             return true;
         }
 
-        if(Build.VERSION.SDK_INT < 28) {
-
-            // DisplayCutout is not available on api < 28
-            callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, 0));
-            return true;
-        }
-
         final WindowInsets insets = getInsets();
-        final DisplayCutout cutout = insets.getDisplayCutout();
+
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            cutout = insets.getDisplayCutout();
+        }
 
         float density = activity.getResources().getDisplayMetrics().density;
 
@@ -63,26 +50,47 @@ public class AndroidNotch extends CordovaPlugin {
             return true;
         }
 
+        if( Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            callbackContext.error("DisplayCutout is not available on api < 28");
+            return false;
+        }
+
         if ("getInsetsTop".equals(action)) {
-            callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, cutout != null ? (cutout.getSafeInsetTop() / density) : 0));
+            activity.runOnUiThread(() -> callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, cutout != null ? (cutout.getSafeInsetTop() / density) : 0)));
             return true;
         }
         
         if ("getInsetsRight".equals(action)) {
-            callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, cutout != null ? (cutout.getSafeInsetRight() / density) : 0));
+            activity.runOnUiThread(() -> callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, cutout != null ? (cutout.getSafeInsetRight() / density) : 0)));
             return true;
         }
 
         if ("getInsetsBottom".equals(action)) {
-            callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, cutout != null ? (cutout.getSafeInsetBottom() / density) : 0));
+            activity.runOnUiThread(() -> callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, cutout != null ? (cutout.getSafeInsetBottom() / density) : 0)));
             return true;
         }
 
         if ("getInsetsLeft".equals(action)) {
-            callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, cutout != null ? (cutout.getSafeInsetLeft() / density) : 0));
+            activity.runOnUiThread(() -> callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, cutout != null ? (cutout.getSafeInsetLeft() / density) : 0)));
             return true;
         }
 
+        if ("getInsets".equals(action)) {
+            activity.runOnUiThread(() -> {
+                try{
+                    JSONObject json = new JSONObject();
+                    json.put("left", cutout != null ? (cutout.getSafeInsetLeft() / density) : 0);
+                    json.put("top", cutout != null ? (cutout.getSafeInsetTop() / density) : 0);
+                    json.put("right", cutout != null ? (cutout.getSafeInsetRight() / density) : 0);
+                    json.put("bottom", cutout != null ? (cutout.getSafeInsetBottom() / density) : 0);
+
+                    callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, json));
+                }catch (Exception e){
+                    callbackContext.error(e.getMessage());
+                }
+            });
+            return true;
+        }
 
         return false;
     }
